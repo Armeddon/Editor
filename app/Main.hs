@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Brick
@@ -9,14 +11,14 @@ import UI (drawUI)
 
 app :: App AppState () Name
 app =
-  App
-    { appDraw = drawUI,
-      appChooseCursor = showFirstCursor,
-      appHandleEvent = appEvent,
-      appStartEvent = return (),
-      appAttrMap = const $ attrMap Vty.defAttr []
-    }
+    App
+        { appDraw = drawUI
+        , appChooseCursor = showFirstCursor
+        , appHandleEvent = appEvent
+        , appStartEvent = return ()
+        , appAttrMap = const $ attrMap Vty.defAttr [(attrName "selected", bg Vty.brightBlack)]
+        }
 
 main :: IO ()
 main = do
-  void $ customMainWithDefaultVty Nothing app initialState
+    void $ defaultMain app initialState
