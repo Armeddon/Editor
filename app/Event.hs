@@ -38,6 +38,7 @@ keybindings =
     , (Visual, Vty.EvKey (Vty.KChar 'k') [], moveCursorRow (-1))
     , (Visual, Vty.EvKey (Vty.KChar 'y') [], copySelection)
     , (Visual, Vty.EvKey (Vty.KChar 'x') [], deleteSelection)
+    , (Visual, Vty.EvKey (Vty.KChar 'c') [], cutSelection)
     , (Normal, Vty.EvKey (Vty.KChar 'p') [], pasteClipboard)
     , (Visual, Vty.EvKey (Vty.KChar 't') [], transformSelected)
     , (Transform, Vty.EvKey Vty.KEsc [], enterVisual)
@@ -86,7 +87,7 @@ deleteSelection = do
         contents = getEditContents buf
         cursor = getCursorPosition buf
         before = take lo contents
-        after = drop hi contents
+        after = drop (hi + 1) contents
         newContents = before ++ after
      in
         do
@@ -96,6 +97,28 @@ deleteSelection = do
             bsBuffer .= applyEdit (Zipper.moveCursor (max 0 $ lo - 1, snd cursor)) buffer
             enterNormal
             bsMessage .= "Deleted " ++ show (hi - lo + 1) ++ " lines"
+
+cutSelection :: EventM Name AppState ()
+cutSelection = do
+    buf <- use bsBuffer
+    range <- use selectionRange
+    let
+        (lo, hi) = fromMaybe (0, 0) range
+        contents = getEditContents buf
+        selected = take (hi - lo + 1) $ drop lo contents
+        cursor = getCursorPosition buf
+        before = take lo contents
+        after = drop (hi + 1) contents
+        newContents = before ++ after
+     in
+        do
+            changeBuffer
+            bsBuffer .= newEditor (T.intercalate "\n" newContents)
+            buffer <- use bsBuffer
+            bsBuffer .= applyEdit (Zipper.moveCursor (max 0 $ lo - 1, snd cursor)) buffer
+            enterNormal
+            bsClipboard .= selected
+            bsMessage .= "Cut " ++ show (hi - lo + 1) ++ " lines"
 
 pasteClipboard :: EventM Name AppState ()
 pasteClipboard = do
