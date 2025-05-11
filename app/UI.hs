@@ -11,7 +11,7 @@ import State
 
 drawUI :: AppState -> [Widget Name]
 drawUI s = case s ^. mode of
-  Editing ->
+  Insert ->
     [ vBox
         [ renderEditor (str . T.unpack . T.intercalate "\n") True (s ^. ed),
           hBorder,

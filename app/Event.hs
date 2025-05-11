@@ -11,20 +11,20 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Graphics.Vty as Vty
 import Safe
-import State (AppState (..), Mode (..), Name (..), ed, filePath, filePrompt, message, mode, redoStack, undoStack)
+import State (AppState, Mode (..), Name (..), ed, filePath, filePrompt, message, mode, redoStack, undoStack)
 import System.IO.Error (tryIOError)
 
 type Keybinding = (Mode, Vty.Event, EventM Name AppState ())
 
 keybindings :: [Keybinding]
 keybindings =
-  [ (Editing, Vty.EvKey (Vty.KChar 's') [Vty.MCtrl], saveFile),
-    (Editing, Vty.EvKey (Vty.KChar 'o') [Vty.MCtrl], enterOpenPrompt),
-    (Editing, Vty.EvKey Vty.KEsc [], exitApp),
+  [ (Insert, Vty.EvKey (Vty.KChar 's') [Vty.MCtrl], saveFile),
+    (Insert, Vty.EvKey (Vty.KChar 'o') [Vty.MCtrl], enterOpenPrompt),
+    (Insert, Vty.EvKey Vty.KEsc [], exitApp),
     (PromptingOpenFile, Vty.EvKey Vty.KEsc [], cancelPrompt),
     (PromptingOpenFile, Vty.EvKey Vty.KEnter [], confirmPrompt),
-    (Editing, Vty.EvKey (Vty.KChar 'z') [Vty.MCtrl], undoAction),
-    (Editing, Vty.EvKey (Vty.KChar 'y') [Vty.MCtrl], redoAction)
+    (Insert, Vty.EvKey (Vty.KChar 'z') [Vty.MCtrl], undoAction),
+    (Insert, Vty.EvKey (Vty.KChar 'y') [Vty.MCtrl], redoAction)
   ]
 
 keybindingsMap :: [((Mode, Vty.Event), EventM Name AppState ())]
@@ -50,7 +50,7 @@ exitApp = halt
 
 cancelPrompt :: EventM Name AppState ()
 cancelPrompt = do
-  mode .= Editing
+  mode .= Insert
   message .= "Canceled"
 
 confirmPrompt :: EventM Name AppState ()
@@ -60,12 +60,12 @@ confirmPrompt = do
   result <- liftIO $ tryIOError (TIO.readFile path)
   case result of
     Left _ -> do
-      mode .= Editing
+      mode .= Insert
       message .= "Created new file" ++ path
       ed .= editor EditorName Nothing ""
       filePath .= path
     Right contents -> do
-      mode .= Editing
+      mode .= Insert
       message .= "Opened " ++ path
       ed .= editor EditorName Nothing contents
       filePath .= path
@@ -105,14 +105,14 @@ appEvent (VtyEvent ev) = do
 appEvent ev = do
   mode' <- use mode
   case mode' of
-    Editing -> Brick.zoom ed $ handleEditorEvent ev
+    Insert -> Brick.zoom ed $ handleEditorEvent ev
     PromptingOpenFile -> Brick.zoom filePrompt $ handleEditorEvent ev
 
 fallbackEvent :: Vty.Event -> EventM Name AppState ()
 fallbackEvent ev = do
   mode' <- use mode
   case mode' of
-    Editing -> do
+    Insert -> do
       old <- use ed
       let oldText = T.intercalate "\n" $ getEditContents old
       undoStack' <- use undoStack

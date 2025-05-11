@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module State where
+module State (Name (..), Mode (..), AppState, ed, filePath, message, mode, filePrompt, undoStack, redoStack, initialState) where
 
 import Brick.Widgets.Edit (Editor, editor)
 import Control.Lens
@@ -9,7 +9,7 @@ import qualified Data.Text as T
 
 data Name = EditorName | FilePromptName deriving (Ord, Show, Eq)
 
-data Mode = Editing | PromptingOpenFile deriving (Eq)
+data Mode = Insert | PromptingOpenFile deriving (Eq)
 
 data AppState = AppState
   { _ed :: Editor T.Text Name,
@@ -29,7 +29,7 @@ initialState =
     { _ed = editor EditorName Nothing "",
       _filePath = "",
       _message = "Welcome!",
-      _mode = Editing,
+      _mode = Insert,
       _filePrompt = editor FilePromptName (Just 1) "",
       _undoStack = [],
       _redoStack = []
