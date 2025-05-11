@@ -4,10 +4,11 @@ module UI (drawUI) where
 
 import Brick
 import Brick.Widgets.Border (hBorder)
-import Brick.Widgets.Edit (renderEditor)
+import Brick.Widgets.Edit (getEditContents, renderEditor)
 import Control.Lens
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
+import Safe
 import State
 
 drawUI :: AppState -> [Widget Name]
@@ -28,6 +29,14 @@ drawUI s = case s ^. mode of
             , str "Press Enter to confirm, Esc to cancel"
             ]
         ]
+    Transform ->
+        [ vBox
+            [ str "Transform a line: "
+            , renderEditor (str . concatMap T.unpack) True (fromMaybe (newTransformEditor "") $ preview transformPrompt s)
+            , hBorder
+            , str $ "Press Enter to confirm, Esc to cancel | Original line: " ++ show selectedFirst
+            ]
+        ]
     Visual ->
         [ vBox
             [ renderEditor (drawEditorVisual (fromMaybe (0, 0) $ s ^. selectionRange)) True (s ^. bsBuffer)
@@ -36,12 +45,18 @@ drawUI s = case s ^. mode of
             ]
         ]
     _ -> []
+  where
+    selectedFirst =
+        let (lo, _) = fromMaybe (0, 0) $ s ^. selectionRange
+            buf = s ^. bsBuffer
+            contents = getEditContents buf
+         in fromMaybe "" $ headMay $ drop lo contents
 
 drawEditorVisual :: (Int, Int) -> [T.Text] -> Widget Name
 drawEditorVisual (start, end) text =
     vBox $
         [ if i >= start && i <= end
-            then withAttr (attrName "selected") (str $ T.unpack line)
-            else str $ T.unpack line
+            then withAttr (attrName "selected") (str $ T.unpack line ++ "\n")
+            else str $ T.unpack line ++ "\n"
         | (i, line) <- zip [0 ..] text
         ]

@@ -65,7 +65,8 @@ executable Editor
     other-modules:
         State,
         UI,
-        Event
+        Event,
+        Transformation
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
