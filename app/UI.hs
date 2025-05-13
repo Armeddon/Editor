@@ -18,7 +18,7 @@ drawUI s = case s ^. mode of
             [ vBox
                 [ renderEditor (str . T.unpack . T.intercalate "\n") True (s ^. bsBuffer)
                 , hBorder
-                , str $ modeString md ++ " | " ++ "File: " ++ (s ^. bsFilePath) ++ " | " ++ (s ^. bsMessage)
+                , str $ modeString md ++ " | " ++ "File: " ++ fileName (s ^. bsFilePath) ++ " | " ++ (s ^. bsMessage)
                 ]
             ]
     Open ->
@@ -41,7 +41,7 @@ drawUI s = case s ^. mode of
         [ vBox
             [ renderEditor (drawEditorVisual (fromMaybe (0, 0) $ s ^. selectionRange)) True (s ^. bsBuffer)
             , hBorder
-            , str $ modeString Visual ++ " | " ++ "File: " ++ (s ^. bsFilePath) ++ " | " ++ (s ^. bsMessage)
+            , str $ modeString Visual ++ " | " ++ "File: " ++ fileName (s ^. bsFilePath) ++ " | " ++ (s ^. bsMessage)
             ]
         ]
     _ -> []
@@ -60,3 +60,6 @@ drawEditorVisual (start, end) text =
             else str $ T.unpack line ++ "\n"
         | (i, line) <- zip [0 ..] text
         ]
+
+fileName :: FilePath -> String
+fileName fp = if null fp then "[No Name]" else fp

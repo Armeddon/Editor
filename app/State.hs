@@ -136,7 +136,7 @@ initialState =
     NormalMode
         ( BufferState
             { _buffer = editor EditorName Nothing ""
-            , _filePath = "[NO NAME]"
+            , _filePath = ""
             , _message = "Welcome!"
             , _undoStack = []
             , _redoStack = []
