@@ -27,6 +27,7 @@ module State (
     bsVirtualColumn,
     bsUndoStack,
     bsRedoStack,
+    bsLastTransformation,
     enterInsert,
     enterNormal,
     enterOpen,
@@ -44,6 +45,7 @@ import Data.Char (toUpper)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import Safe
+import qualified TransformationRule as TRule
 
 data Name = EditorName | OpenPromptName | TransformPromptName deriving (Ord, Show, Eq)
 
@@ -60,6 +62,7 @@ data BufferState = BufferState
     , _redoStack :: [T.Text]
     , _virtualColumn :: Int
     , _clipboard :: [T.Text]
+    , _lastTransformation :: Maybe TRule.TransformationRule
     }
 
 makeLenses ''BufferState
@@ -109,6 +112,9 @@ bsVirtualColumn = bs . virtualColumn
 bsClipboard :: Lens' AppState [T.Text]
 bsClipboard = bs . clipboard
 
+bsLastTransformation :: Lens' AppState (Maybe TRule.TransformationRule)
+bsLastTransformation = bs . lastTransformation
+
 selectionRange :: Getter AppState (Maybe (Int, Int))
 selectionRange = to getSelectionRange
 
@@ -142,6 +148,7 @@ initialState =
             , _redoStack = []
             , _virtualColumn = 0
             , _clipboard = []
+            , _lastTransformation = Nothing
             }
         )
 

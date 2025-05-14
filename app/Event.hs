@@ -41,6 +41,7 @@ keybindings =
     , (Visual, Vty.EvKey (Vty.KChar 'c') [], cutSelection)
     , (Normal, Vty.EvKey (Vty.KChar 'p') [], pasteClipboard)
     , (Visual, Vty.EvKey (Vty.KChar 't') [], transformSelected)
+    , (Visual, Vty.EvKey (Vty.KChar 'r') [], repeatLastTransformation)
     , (Transform, Vty.EvKey Vty.KEsc [], enterVisual)
     , (Transform, Vty.EvKey Vty.KEnter [], endTransformation)
     , (Insert, Vty.EvKey Vty.KEsc [], enterNormal)

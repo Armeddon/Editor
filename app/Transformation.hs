@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Transformation (transformSelected, endTransformation) where
+module Transformation (transformSelected, endTransformation, repeatLastTransformation) where
 
 import Brick
 import Brick.Widgets.Edit (applyEdit, getCursorPosition, getEditContents)
@@ -13,6 +13,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Zipper as Zipper
 import Safe (headMay, tailSafe)
 import State
+import TransformationRule
 
 tokenizeWithSpaces :: T.Text -> [(T.Text, T.Text)]
 tokenizeWithSpaces t
@@ -37,10 +38,6 @@ splitBoundary = T.groupBy keepGrouped
   where
     keepGrouped a b = not (isBoundaryChar a || isBoundaryChar b)
     isBoundaryChar c = c `elem` ("()[]{},;" :: String)
-
-data TokenExpr = From Int | Literal T.Text deriving (Eq, Show)
-
-type TransformationRule = [(TokenExpr, T.Text)]
 
 inferTokenExpr :: [T.Text] -> [(T.Text, T.Text)] -> TransformationRule
 inferTokenExpr input = Prelude.map match
@@ -76,15 +73,22 @@ applyTransformation rule firstLine = do
                 enterVisual
             else do
                 changeBuffer
-                let newContents = before ++ [fromMaybe "" firstLine] ++ changed' ++ after
+                let newContents = before ++ (if isNothing firstLine then changed' else fromMaybe "" firstLine : changed') ++ after
                     cursor = getCursorPosition buf
                 bsBuffer .= newEditor (T.intercalate "\n" newContents)
                 buffer <- use bsBuffer
                 bsBuffer .= applyEdit (Zipper.moveCursor cursor) buffer
+                bsMessage .= "Rule applied to " ++ show (length changed') ++ " lines"
+                bsLastTransformation .= Just rule
                 enterNormal
 
 transformSelected :: EventM Name AppState ()
 transformSelected = enterTransform
+
+repeatLastTransformation :: EventM Name AppState ()
+repeatLastTransformation = do
+    lastTransformation <- use bsLastTransformation
+    applyTransformation (fromMaybe [] lastTransformation) Nothing
 
 endTransformation :: EventM Name AppState ()
 endTransformation = do
