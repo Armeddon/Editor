@@ -28,7 +28,9 @@ tokenizeWithSpaces t
          in [("", sp) | not $ T.null sp] ++ tokens ++ tokenizeWithSpaces rest'
 
 tokenize :: T.Text -> [T.Text]
-tokenize t = T.words t >>= splitBoundary
+tokenize t = do
+    ws <- T.words t
+    splitBoundary ws
 
 splitBoundary :: T.Text -> [T.Text]
 splitBoundary = T.groupBy keepGrouped
@@ -38,7 +40,9 @@ splitBoundary = T.groupBy keepGrouped
 
 data TokenExpr = From Int | Literal T.Text deriving (Eq, Show)
 
-inferTokenExpr :: [T.Text] -> [(T.Text, T.Text)] -> [(TokenExpr, T.Text)]
+type TransformationRule = [(TokenExpr, T.Text)]
+
+inferTokenExpr :: [T.Text] -> [(T.Text, T.Text)] -> TransformationRule
 inferTokenExpr input = Prelude.map match
   where
     match (tok, s) = case lookupToken tok of
@@ -46,7 +50,7 @@ inferTokenExpr input = Prelude.map match
         Nothing -> (Literal tok, s)
     lookupToken tok = elemIndex tok input
 
-applyTokenExpr :: [(TokenExpr, T.Text)] -> [T.Text] -> Maybe [(T.Text, T.Text)]
+applyTokenExpr :: TransformationRule -> [T.Text] -> Maybe [(T.Text, T.Text)]
 applyTokenExpr exprs input = mapM apply exprs
   where
     apply (From i, s) =
@@ -55,35 +59,44 @@ applyTokenExpr exprs input = mapM apply exprs
             else Nothing
     apply (Literal t, s) = Just (t, s)
 
+applyTransformation :: TransformationRule -> Maybe T.Text -> EventM Name AppState ()
+applyTransformation rule firstLine = do
+    range <- use selectionRange
+    buf <- use bsBuffer
+    let (lo, hi) = fromMaybe (0, 0) range
+        contents = getEditContents buf
+        selectedAll = take (hi - lo + 1) $ drop lo contents
+        selected = if isNothing firstLine then selectedAll else tailSafe selectedAll
+        before = take lo contents
+        after = drop (hi + 1) contents
+        changed = map (fmap (T.concat . map (uncurry T.append)) . applyTokenExpr rule . tokenize) selected
+        changed' = zipWith (\sel c -> if isNothing c then sel else fromMaybe "" c) selected changed
+     in if all isNothing changed
+            then
+                enterVisual
+            else do
+                changeBuffer
+                let newContents = before ++ [fromMaybe "" firstLine] ++ changed' ++ after
+                    cursor = getCursorPosition buf
+                bsBuffer .= newEditor (T.intercalate "\n" newContents)
+                buffer <- use bsBuffer
+                bsBuffer .= applyEdit (Zipper.moveCursor cursor) buffer
+                enterNormal
+
 transformSelected :: EventM Name AppState ()
 transformSelected = enterTransform
 
 endTransformation :: EventM Name AppState ()
 endTransformation = do
+    s <- get
     range <- use selectionRange
     buf <- use bsBuffer
-    let (lo, hi) = fromMaybe (0, 0) range
+    let (lo, _) = fromMaybe (0, 0) range
         contents = getEditContents buf
-        selected = tailSafe $ take (hi - lo + 1) $ drop lo contents
-        before = take lo contents
-        after = drop (hi + 1) contents
         beforeTransformation = tokenize $ fromMaybe "" $ headMay $ drop lo contents
-    s <- get
     case s ^? _TransformMode of
         Nothing -> enterVisual
         Just (_, _, transformEditor) ->
             let afterTransformation = tokenizeWithSpaces $ T.concat $ getEditContents transformEditor
                 tokenExpr = inferTokenExpr beforeTransformation afterTransformation
-                changed = map (fmap (T.concat . map (uncurry T.append)) . applyTokenExpr tokenExpr . tokenize) selected
-                changed' = zipWith (\sel c -> if isNothing c then sel else fromMaybe "" c) selected changed
-             in if all isNothing changed
-                    then
-                        enterVisual
-                    else do
-                        changeBuffer
-                        let newContents = before ++ getEditContents transformEditor ++ changed' ++ after
-                            cursor = getCursorPosition buf
-                        bsBuffer .= newEditor (T.intercalate "\n" newContents)
-                        buffer <- use bsBuffer
-                        bsBuffer .= applyEdit (Zipper.moveCursor cursor) buffer
-                        enterNormal
+             in applyTransformation tokenExpr (Just $ T.concat $ getEditContents transformEditor)
