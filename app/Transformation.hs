@@ -18,13 +18,14 @@ tokenizeWithSpaces :: T.Text -> [(T.Text, T.Text)]
 tokenizeWithSpaces t
     | T.null t = []
     | otherwise =
-        let (tok, rest) = T.break isSpace t
+        let (sp, rst) = T.span isSpace t
+            (tok, rest) = T.break isSpace rst
             (ws, rest') = T.span isSpace rest
             subtoks = splitBoundary tok
             tokens = case reverse subtoks of
                 [] -> []
                 (lastTok : restRev) -> reverse (map (,"") restRev) ++ [(lastTok, ws)]
-         in tokens ++ tokenizeWithSpaces rest'
+         in [("", sp) | not $ T.null sp] ++ tokens ++ tokenizeWithSpaces rest'
 
 tokenize :: T.Text -> [T.Text]
 tokenize t = T.words t >>= splitBoundary
