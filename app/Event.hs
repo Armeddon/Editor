@@ -176,17 +176,20 @@ confirmPrompt = do
         Just prompt' -> do
             let path = T.unpack $ T.concat $ getEditContents prompt'
             result <- liftIO $ tryIOError (TIO.readFile path)
+            buffer <- use bsBuffer
+            let cursor = getCursorPosition buffer
+            enterNormal
+            bsFilePath .= path
             case result of
                 Left _ -> do
-                    enterNormal
                     bsMessage .= "Created new file: " ++ path
                     bsBuffer .= initialEditor
-                    bsFilePath .= path
                 Right contents -> do
-                    enterNormal
                     bsMessage .= "Opened " ++ path
                     bsBuffer .= newEditor contents
-                    bsFilePath .= path
+            bsBuffer' <- use bsBuffer
+            bsBuffer .= applyEdit (Zipper.moveCursor cursor) bsBuffer'
+            bsVirtualColumn .= snd cursor
 
 undoAction :: EventM Name AppState ()
 undoAction = do
