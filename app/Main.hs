@@ -4,10 +4,10 @@ module Main where
 
 import Brick
 import Control.Monad (void)
-import Event (appEvent)
+import Editor.Event (appEvent)
+import Editor.State (AppState, Name, initialState)
+import Editor.UI (drawUI)
 import qualified Graphics.Vty as Vty
-import State (AppState, Name, initialState)
-import UI (drawUI)
 
 app :: App AppState () Name
 app =

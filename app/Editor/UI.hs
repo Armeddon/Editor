@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module UI (drawUI) where
+module Editor.UI (drawUI) where
 
 import Brick
 import Brick.Widgets.Border (hBorder)
@@ -8,8 +8,8 @@ import Brick.Widgets.Edit (getEditContents, renderEditor)
 import Control.Lens
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
+import Editor.State
 import Safe
-import State
 
 drawUI :: AppState -> [Widget Name]
 drawUI s = case s ^. mode of

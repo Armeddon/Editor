@@ -1,21 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Event (appEvent) where
+module Editor.Event (appEvent) where
 
 import Brick
 import Brick.Widgets.Edit (applyEdit, getCursorPosition, getEditContents, handleEditorEvent)
 import Control.Lens
 import Control.Monad (unless, when)
-import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
-import qualified Data.Text.Zipper as Zipper (lineLengths, moveCursor, textZipper)
+import qualified Data.Text.Zipper as Zipper (lineLengths, moveCursor, moveCursorClosest, textZipper)
+import Editor.Features.File
+import Editor.Features.Transformation
+import Editor.State
 import qualified Graphics.Vty as Vty
 import Safe
-import State
-import System.IO.Error (tryIOError)
-import Transformation
 
 type Keybinding = (Mode, Vty.Event, EventM Name AppState ())
 
@@ -41,7 +39,7 @@ keybindings =
     , (Visual, Vty.EvKey (Vty.KChar 'c') [], cutSelection)
     , (Normal, Vty.EvKey (Vty.KChar 'p') [], pasteClipboard)
     , (Visual, Vty.EvKey (Vty.KChar 't') [], transformSelected)
-    , (Visual, Vty.EvKey (Vty.KChar 'r') [], repeatLastTransformation)
+    , (Visual, Vty.EvKey (Vty.KChar 'T') [], repeatLastTransformation)
     , (Transform, Vty.EvKey Vty.KEsc [], enterVisual)
     , (Transform, Vty.EvKey Vty.KEnter [], endTransformation)
     , (Insert, Vty.EvKey Vty.KEsc [], enterNormal)
@@ -52,18 +50,6 @@ keybindings =
 
 keybindingsMap :: [((Mode, Vty.Event), EventM Name AppState ())]
 keybindingsMap = map (\(md, ev, ac) -> ((md, ev), ac)) keybindings
-
-saveFile :: EventM Name AppState ()
-saveFile = do
-    path <- use bsFilePath
-    buffer <- use bsBuffer
-    let contents = T.unlines $ getEditContents buffer
-    result <- liftIO $ tryIOError (TIO.writeFile path contents)
-    case result of
-        Left _ ->
-            bsMessage .= "Failed to save " ++ path
-        Right _ -> do
-            bsMessage .= "Saved " ++ path
 
 exitApp :: EventM Name AppState ()
 exitApp = halt
@@ -94,8 +80,8 @@ deleteSelection = do
         do
             changeBuffer
             bsBuffer .= newEditor (T.intercalate "\n" newContents)
-            buffer <- use bsBuffer
-            bsBuffer .= applyEdit (Zipper.moveCursor (max 0 $ lo - 1, snd cursor)) buffer
+            use bsBuffer
+                >>= (bsBuffer .=) . applyEdit (Zipper.moveCursor (max 0 $ lo - 1, snd cursor))
             enterNormal
             bsMessage .= "Deleted " ++ show (hi - lo + 1) ++ " lines"
 
@@ -115,8 +101,8 @@ cutSelection = do
         do
             changeBuffer
             bsBuffer .= newEditor (T.intercalate "\n" newContents)
-            buffer <- use bsBuffer
-            bsBuffer .= applyEdit (Zipper.moveCursor (max 0 $ lo - 1, snd cursor)) buffer
+            use bsBuffer
+                >>= (bsBuffer .=) . applyEdit (Zipper.moveCursor (max 0 $ lo - 1, snd cursor))
             enterNormal
             bsClipboard .= selected
             bsMessage .= "Cut " ++ show (hi - lo + 1) ++ " lines"
@@ -133,8 +119,8 @@ pasteClipboard = do
          in do
                 changeBuffer
                 bsBuffer .= newEditor (T.intercalate "\n" newContents)
-                buffer <- use bsBuffer
-                bsBuffer .= applyEdit (Zipper.moveCursor (fst cursor + length clip, snd cursor)) buffer
+                use bsBuffer
+                    >>= (bsBuffer .=) . applyEdit (Zipper.moveCursor (fst cursor + length clip, snd cursor))
                 bsMessage .= "Pasted " ++ show (length clip) ++ " lines"
 
 moveCursorCol :: Int -> EventM Name AppState ()
@@ -171,26 +157,11 @@ cancelPrompt = do
 confirmPrompt :: EventM Name AppState ()
 confirmPrompt = do
     s <- get
-    let prompt = preview openPrompt s
-    case prompt of
+    case preview openPrompt s of
         Nothing -> return ()
-        Just prompt' -> do
-            let path = T.unpack $ T.concat $ getEditContents prompt'
-            result <- liftIO $ tryIOError (TIO.readFile path)
-            buffer <- use bsBuffer
-            let cursor = getCursorPosition buffer
+        Just prompt -> do
+            openFile $ T.unpack $ T.concat $ getEditContents prompt
             enterNormal
-            bsFilePath .= path
-            case result of
-                Left _ -> do
-                    bsMessage .= "Created new file: " ++ path
-                    bsBuffer .= initialEditor
-                Right contents -> do
-                    bsMessage .= "Opened " ++ path
-                    bsBuffer .= newEditor contents
-            bsBuffer' <- use bsBuffer
-            bsBuffer .= applyEdit (Zipper.moveCursor cursor) bsBuffer'
-            bsVirtualColumn .= snd cursor
 
 undoAction :: EventM Name AppState ()
 undoAction = do
@@ -199,11 +170,13 @@ undoAction = do
     case option of
         Just old -> do
             new <- use bsBuffer
+            let cursor = getCursorPosition new
             bsBuffer .= newEditor old
+            use bsBuffer
+                >>= (bsBuffer .=) . applyEdit (Zipper.moveCursorClosest cursor)
             let newText = T.intercalate "\n" $ getEditContents new
             bsUndoStack .= tailSafe undoStack'
-            redoStack' <- use bsRedoStack
-            bsRedoStack .= newText : redoStack'
+            use bsRedoStack >>= (bsRedoStack .=) . (newText :)
             bsMessage .= "Change undone"
         Nothing -> bsMessage .= "Already at oldest change"
 
@@ -217,8 +190,7 @@ redoAction = do
             bsBuffer .= newEditor new
             let oldText = T.intercalate "\n" $ getEditContents old
             bsRedoStack .= tailSafe redoStack'
-            undoStack' <- use bsUndoStack
-            bsUndoStack .= oldText : undoStack'
+            use bsUndoStack >>= ((bsUndoStack .=) . (oldText :))
             bsMessage .= "Change redone"
         Nothing -> bsMessage .= "Already at newest change"
 

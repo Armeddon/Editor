@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module Transformation (transformSelected, endTransformation, repeatLastTransformation) where
+module Editor.Features.Transformation (transformSelected, endTransformation, repeatLastTransformation) where
 
 import Brick
 import Brick.Widgets.Edit (applyEdit, getCursorPosition, getEditContents)
@@ -11,9 +11,9 @@ import Data.List (elemIndex)
 import Data.Maybe (fromMaybe, isNothing)
 import qualified Data.Text as T
 import qualified Data.Text.Zipper as Zipper
+import Editor.Features.Transformation.Rule
+import Editor.State
 import Safe (headMay, tailSafe)
-import State
-import TransformationRule
 
 tokenizeWithSpaces :: T.Text -> [(T.Text, T.Text)]
 tokenizeWithSpaces t
@@ -37,7 +37,7 @@ splitBoundary :: T.Text -> [T.Text]
 splitBoundary = T.groupBy keepGrouped
   where
     keepGrouped a b = not (isBoundaryChar a || isBoundaryChar b)
-    isBoundaryChar c = c `elem` ("()[]{},;" :: String)
+    isBoundaryChar c = c `elem` ("()[]{},;/+-*" :: String)
 
 inferTokenExpr :: [T.Text] -> [(T.Text, T.Text)] -> TransformationRule
 inferTokenExpr input = Prelude.map match
@@ -67,17 +67,17 @@ applyTransformation rule firstLine = do
         before = take lo contents
         after = drop (hi + 1) contents
         changed = map (fmap (T.concat . map (uncurry T.append)) . applyTokenExpr rule . tokenize) selected
-        changed' = zipWith (\sel c -> if isNothing c then sel else fromMaybe "" c) selected changed
-     in if all isNothing changed
+        changed' = zipWith fromMaybe selected changed
+     in if all isNothing $ firstLine : changed
             then
                 enterVisual
             else do
                 changeBuffer
-                let newContents = before ++ (if isNothing firstLine then changed' else fromMaybe "" firstLine : changed') ++ after
+                let newContents = before ++ fromMaybe [] (sequence [firstLine]) ++ changed' ++ after
                     cursor = getCursorPosition buf
                 bsBuffer .= newEditor (T.intercalate "\n" newContents)
-                buffer <- use bsBuffer
-                bsBuffer .= applyEdit (Zipper.moveCursor cursor) buffer
+                use bsBuffer
+                    >>= (bsBuffer .=) . applyEdit (Zipper.moveCursor cursor)
                 bsMessage .= "Rule applied to " ++ show (length changed') ++ " lines"
                 bsLastTransformation .= Just rule
                 enterNormal

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module State (
+module Editor.State (
     Name,
     Mode (..),
     BufferState,
@@ -44,8 +44,8 @@ import Control.Lens
 import Data.Char (toUpper)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
+import qualified Editor.Features.Transformation.Rule as TRule
 import Safe
-import qualified TransformationRule as TRule
 
 data Name = EditorName | OpenPromptName | TransformPromptName deriving (Ord, Show, Eq)
 
