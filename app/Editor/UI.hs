@@ -8,7 +8,10 @@ import Brick.Widgets.Edit (getEditContents, renderEditor)
 import Control.Lens
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import Editor.State
+import Editor.Model
+import Editor.Model.Mode
+import Editor.Model.Name
+import Editor.Model.State
 import Safe
 
 drawUI :: AppState -> [Widget Name]

@@ -5,7 +5,8 @@ module Main where
 import Brick
 import Control.Monad (void)
 import Editor.Event (appEvent)
-import Editor.State (AppState, Name, initialState)
+import Editor.Model.Name
+import Editor.Model.State
 import Editor.UI (drawUI)
 import qualified Graphics.Vty as Vty
 

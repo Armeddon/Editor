@@ -1,58 +1,36 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Editor.State (
-    Name,
-    Mode (..),
-    BufferState,
-    AppState,
-    changeBuffer,
+module Editor.Model.State (
+    AppState (..),
+    _NormalMode,
+    _InsertMode,
+    _OpenMode,
+    _VisualMode,
+    _TransformMode,
+    bs,
     bsBuffer,
     bsFilePath,
     bsMessage,
-    bsClipboard,
-    _NormalMode,
-    _InsertMode,
-    _VisualMode,
-    _TransformMode,
-    _OpenMode,
-    initialState,
-    openPrompt,
-    transformPrompt,
-    initialFileOpenEditor,
-    newTransformEditor,
-    initialEditor,
-    newEditor,
-    mode,
-    bsVirtualColumn,
     bsUndoStack,
     bsRedoStack,
+    bsVirtualColumn,
+    bsClipboard,
     bsLastTransformation,
-    enterInsert,
-    enterNormal,
-    enterOpen,
-    enterTransform,
+    openPrompt,
+    selectionStart,
+    transformPrompt,
+    mode,
     selectionRange,
-    modeString,
-    enterVisual,
-)
-where
+    initialState,
+) where
 
-import Brick.Types (EventM, get, put)
-import Brick.Widgets.Edit (Editor, editor, getCursorPosition, getEditContents)
+import Brick.Widgets.Edit (Editor, editor, getCursorPosition)
 import Control.Lens
-import Data.Char (toUpper)
-import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Editor.Features.Transformation.Rule as TRule
-import Safe
-
-data Name = EditorName | OpenPromptName | TransformPromptName deriving (Ord, Show, Eq)
-
-data Mode = Normal | Insert | Visual | Open | Transform deriving (Eq, Show)
-
-modeString :: Mode -> String
-modeString = map toUpper . show
+import Editor.Model.Mode
+import Editor.Model.Name
 
 data BufferState = BufferState
     { _buffer :: Editor T.Text Name
@@ -151,60 +129,3 @@ initialState =
             , _lastTransformation = Nothing
             }
         )
-
-initialFileOpenEditor :: Editor T.Text Name
-initialFileOpenEditor = editor OpenPromptName (Just 1) ""
-
-newTransformEditor :: T.Text -> Editor T.Text Name
-newTransformEditor = editor TransformPromptName (Just 1)
-
-initialEditor :: Editor T.Text Name
-initialEditor = newEditor ""
-
-newEditor :: T.Text -> Editor T.Text Name
-newEditor = editor EditorName Nothing
-
-enterNormal :: EventM Name AppState ()
-enterNormal = do
-    bufferState <- use bs
-    put $ NormalMode bufferState
-
-enterVisual :: EventM Name AppState ()
-enterVisual = do
-    bufferState <- use bs
-    bsBuffer' <- use bsBuffer
-    s <- get
-    put $ VisualMode bufferState $ case s ^? _TransformMode of
-        Just (_, ss, _) -> ss
-        Nothing -> fst $ getCursorPosition bsBuffer'
-
-enterInsert :: EventM Name AppState ()
-enterInsert = do
-    bufferState <- use bs
-    put $ InsertMode bufferState
-
-enterOpen :: EventM Name AppState ()
-enterOpen = do
-    bufferState <- use bs
-    put $ OpenMode bufferState initialFileOpenEditor
-
-enterTransform :: EventM Name AppState ()
-enterTransform = do
-    range <- use selectionRange
-    buf <- use bsBuffer
-    s <- get
-    case s ^? _VisualMode of
-        Nothing -> return ()
-        Just (bufferState, ss) ->
-            let (lo, _) = fromMaybe (0, 0) range
-                contents = getEditContents buf
-                selectedFirst = fromMaybe "" $ headMay $ drop lo contents
-             in put $ TransformMode bufferState ss $ newTransformEditor selectedFirst
-
-changeBuffer :: EventM Name AppState ()
-changeBuffer = do
-    old <- use bsBuffer
-    let oldText = T.intercalate "\n" $ getEditContents old
-    undoStack' <- use bsUndoStack
-    bsUndoStack .= oldText : undoStack'
-    bsRedoStack .= []
